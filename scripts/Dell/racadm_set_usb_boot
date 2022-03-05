@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # GLOBAL SETTINGS
-NO=1
 YES=0
+NO=1
 
 
 # FUNCTIONS
@@ -14,19 +14,51 @@ die() {
 
 
 assert_racadm() {
-  local _loopcounter=0
-  while [[ $_loopcounter -lt 1 ]] ; do
-    _loopcounter=1
-    # try 1
-    RACADM=$(which racadm)
-    [[ ${#RACADM} -gt 1 ]] && break
-    # try 2
-    [[ -x /opt/dell/srvadmin/bin/idracadm7 ]] && {
-      RACADM=/opt/dell/srvadmin/bin/idracadm7
-      break
-    }
-  done
+  # try 1
+  RACADM=$(which racadm)
+  [[ ${#RACADM} -gt 1 ]] && return
+  # try 2
+  [[ -x /opt/dell/srvadmin/bin/idracadm7 ]] \
+  && RACADM=/opt/dell/srvadmin/bin/idracadm7
   [[ ${#RACADM} -gt 1 ]] || die "racadm not found"
+}
+
+
+is_usb_boot_enabled() {
+  local _linecount=$(
+    $RACADM get bios.biosbootsettings.GenericUsbBoot \
+    | grep -F 'GenericUsbBoot' \
+    | grep -F 'Enabled' \
+    | wc -l
+  )
+  [[ $_linecount -eq 1 ]] && return $YES || return $NO
+}
+
+
+enable_usb_boot() {
+  local _rc=$NO
+  echo "Checking if USB boot is enabled ..."
+  if is_usb_boot_enabled ; then
+    echo "USB boot is already enabled."
+    _rc=$YES
+  else
+    echo "USB boot is NOT enabled."
+    echo "Attempting to enable USB boot."
+    set -x
+    $RACADM set bios.biosbootsettings.GenericUsbBoot Enabled
+    set +x
+    echo <<ENDHERE
+
+IMPORTANT:
+  USB enablement requires TWO system reboots.
+  Follow the instructions below to apply the first set of changes and reboot.
+  After the reboot completes, run this script again to set proper boot sequence.
+
+ENDHERE
+    apply_changes
+    _rc=$NO
+  fi
+  return $_rc
 }
 
 
@@ -45,60 +77,68 @@ get_uefi_boot_order() {
 set_uefi_boot_order() {
   local _old=$( get_uefi_boot_order )
   local _old_parts=( $( echo "$_old" | tr ',' ' ' ) )
-  local _usb=()
-  local _disks=()
-  local _others=()
-  local _new_parts=()
-  local _i=0
+
+  echo "Uefi boot sequence is '$_old'"
+
+  # if USB is the first boot item, then nothing to do
+  if [[ "${_old_parts[0]}" == *USB* ]] ; then
+    echo "USB boot is already first. Nothing to do."
+    return $YES
+  fi
+
+  # Find the USB boot entry and make it the first one
   for elem in "${_old_parts[@]}"; do
-    case "$elem" in
-      *USB*)
-        _usb+=("$elem")
-        ;;
-      *Disk*)
-        _disks+=("$elem")
-        ;;
-      *)
-        _others+=("$elem")
-        ;;
-    esac
+    if [[ "$elem" == *USB* ]] ; then
+      echo "Setting USB boot as first boot option ..."
+      set -x
+      $RACADM set bios.biosbootsettings.SetBootOrderFqdd1 "$elem"
+      set +x
+      break
+    fi
   done
+  apply_changes
+}
 
-  echo "NEW boot order"
-  #echo "${_usb[@]}" "${_disks[@]}" "${_others[@]}"
 
-  for elem in "${_usb[@]}" "${_disks[@]}"; do
-    _i=$(( $_i + 1 ))
-    set +x
-    $RACADM set bios.biosbootsettings.SetBootOrderFqdd${_i} "$elem"
-    set -x
-  done
+set_usb_as_first_boot_option() {
+  local _bootmode=$( get_boot_mode )
+  echo "Bootmode is '$_bootmode'"
+  # TODO - add support to set boot order for BIOS boot mode
+  case "$_bootmode" in
+    uefi)
+      # echo "OLD boot order"
+      # get_uefi_boot_order
+      # echo
+      set_uefi_boot_order
+      ;;
+    *)
+      die "boot mode: '$_bootmode' is not supported."
+      ;;
+  esac
+}
+
+
+apply_changes() {
+  cat <<ENDHERE
+Next Steps:
+  1. Check bios boot settings ...
+     racadm get bios.biosbootsettings
+  2. Apply settings ...
+     racadm jobqueue create BIOS.Setup.1-1 -r pwrcycle -s TIME_NOW
+     (this should cause the OS to reboot)
+  3. If node did not reboot on it's own, manually reboot the OS or cycle power.
+     Can also try:
+     racadm jobqueue create BIOS.Setup.1-1 -r graceful -s TIME_NOW
+  4. OPTIONAL - delete completed jobqueue tasks ...
+     racadm jobqueue view
+     racadm jobqueue delete --all
+ENDHERE
 }
 
 
 # DO WORK
 assert_racadm
 
-bootmode=$( get_boot_mode )
-# TODO - add more code to switch the boot mode 
-# ... OR ... add support to set boot order for BIOS boot mode as well
-[[ "$bootmode" != 'uefi' ]] \
-&& die "boot mode: '$bootmode' is not supported. Switch to uefi."
+enable_usb_boot || exit
 
-echo "OLD boot order"
-get_uefi_boot_order
-echo
-
-set_uefi_boot_order
-
-cat <<ENDHERE
-Final Steps:
-1. Check bios boot settings
-  racadm get bios.biosbootsettings
-2. Apply settings
-  racadm jobqueue create BIOS.Setup.1-1 -r pwrcycle -s TIME_NOW
-3. If node did not reboot on it's own, cycle power manually
-   or reboot the OS.
-   Can also try:
-   racadm jobqueue create BIOS.Setup.1-1 -r graceful -s TIME_NOW
-ENDHERE
+set_usb_as_first_boot_option
