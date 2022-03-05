@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# GLOBAL SETTINGS
+NO=1
+YES=0
+
+
+# FUNCTIONS
+die() {
+  echo "ERROR $*" >&2
+  kill 0
+  exit 99
+}
+
+
+assert_racadm() {
+  local _loopcounter=0
+  while [[ $_loopcounter -lt 1 ]] ; do
+    _loopcounter=1
+    # try 1
+    RACADM=$(which racadm)
+    [[ ${#RACADM} -gt 1 ]] && break
+    # try 2
+    [[ -x /opt/dell/srvadmin/bin/idracadm7 ]] && {
+      RACADM=/opt/dell/srvadmin/bin/idracadm7
+      break
+    }
+  done
+  [[ ${#RACADM} -gt 1 ]] || die "racadm not found"
+}
+
+
+get_boot_mode() {
+  $RACADM get bios.biosbootsettings.bootmode \
+  | awk -F '=' '/^bootmode/ { printf "%s\n", tolower($2) }'
+}
+
+
+get_uefi_boot_order() {
+  $RACADM get bios.biosbootsettings.UefiBootSeq \
+  | awk -F '=' '/^UefiBootSeq/ { printf "%s\n", $2 }'
+}
+
+
+set_uefi_boot_order() {
+  local _old=$( get_uefi_boot_order )
+  local _old_parts=( $( echo "$_old" | tr ',' ' ' ) )
+  local _usb=()
+  local _disks=()
+  local _others=()
+  local _new_parts=()
+  local _i=0
+  for elem in "${_old_parts[@]}"; do
+    case "$elem" in
+      *USB*)
+        _usb+=("$elem")
+        ;;
+      *Disk*)
+        _disks+=("$elem")
+        ;;
+      *)
+        _others+=("$elem")
+        ;;
+    esac
+  done
+
+  echo "NEW boot order"
+  #echo "${_usb[@]}" "${_disks[@]}" "${_others[@]}"
+
+  for elem in "${_usb[@]}" "${_disks[@]}"; do
+    _i=$(( $_i + 1 ))
+    set +x
+    $RACADM set bios.biosbootsettings.SetBootOrderFqdd${_i} "$elem"
+    set -x
+  done
+}
+
+
+# DO WORK
+assert_racadm
+
+bootmode=$( get_boot_mode )
+# TODO - add more code to switch the boot mode 
+# ... OR ... add support to set boot order for BIOS boot mode as well
+[[ "$bootmode" != 'uefi' ]] \
+&& die "boot mode: '$bootmode' is not supported. Switch to uefi."
+
+echo "OLD boot order"
+get_uefi_boot_order
+echo
+
+set_uefi_boot_order
+
+cat <<ENDHERE
+Final Steps:
+1. Check bios boot settings
+  racadm get bios.biosbootsettings
+2. Apply settings
+  racadm jobqueue create BIOS.Setup.1-1 -r pwrcycle -s TIME_NOW
+3. If node did not reboot on it's own, cycle power manually
+   or reboot the OS.
+   Can also try:
+   racadm jobqueue create BIOS.Setup.1-1 -r graceful -s TIME_NOW
+ENDHERE
