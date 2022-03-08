@@ -3,6 +3,10 @@
 # GLOBAL SETTINGS
 YES=0
 NO=1
+SUCCESS=0
+FAIL=1
+REBOOT_REQUIRED=$NO
+REBOOT_MSG="Rebooting Required."
 
 
 # FUNCTIONS
@@ -24,6 +28,37 @@ assert_racadm() {
 }
 
 
+get_boot_mode() {
+  $RACADM get bios.biosbootsettings.bootmode \
+  | awk -F '=' '/^bootmode/ { printf "%s\n", tolower($2) }'
+}
+
+
+set_uefi_boot_mode() {
+  local _bootmode=$( get_boot_mode )
+  echo "Bootmode is '$_bootmode'"
+  case "$_bootmode" in
+    uefi)
+      : #pass
+      ;;
+    bios)
+      echo "Attempting to set UEFI bootmode."
+      set -x
+      $RACADM set bios.biosbootsettings.bootmode Uefi
+      set +x
+      REBOOT_REQUIRED=$YES
+      REBOOT_MSG="IMPORTANT:
+        USB enablement requires UEFI boot mode.
+        Follow the instructions below to apply the change to boot in uefi mode.
+        After the reboot completes, run this script again to enable USB boot option."
+      ;;
+    *)
+      die "boot mode: '$_bootmode' is not supported."
+      ;;
+  esac
+}
+
+
 is_usb_boot_enabled() {
   local _linecount=$(
     $RACADM get bios.biosbootsettings.GenericUsbBoot \
@@ -36,37 +71,23 @@ is_usb_boot_enabled() {
 
 
 enable_usb_boot() {
-  local _rc=$NO
   echo "Checking if USB boot is enabled ..."
   if is_usb_boot_enabled ; then
     echo "USB boot is already enabled."
-    _rc=$YES
   else
     echo "USB boot is NOT enabled."
     echo "Attempting to enable USB boot."
     set -x
     $RACADM set bios.biosbootsettings.GenericUsbBoot Enabled
     set +x
-    echo <<ENDHERE
-
-IMPORTANT:
-  USB enablement requires TWO system reboots.
-  Follow the instructions below to apply the first set of changes and reboot.
-  After the reboot completes, run this script again to set proper boot sequence.
-
-ENDHERE
-    apply_changes
-    _rc=$NO
+    REBOOT_REQUIRED=$YES
+    REBOOT_MSG="
+      IMPORTANT:
+        USB enablement requires TWO system reboots.
+        Follow the instructions below to apply the first set of changes and reboot.
+        After the reboot completes, run this script again to set proper boot sequence."
   fi
-  return $_rc
 }
-
-
-get_boot_mode() {
-  $RACADM get bios.biosbootsettings.bootmode \
-  | awk -F '=' '/^bootmode/ { printf "%s\n", tolower($2) }'
-}
-
 
 get_uefi_boot_order() {
   $RACADM get bios.biosbootsettings.UefiBootSeq \
@@ -74,7 +95,7 @@ get_uefi_boot_order() {
 }
 
 
-set_uefi_boot_order() {
+set_usb_as_first_boot_option() {
   local _old=$( get_uefi_boot_order )
   local _old_parts=( $( echo "$_old" | tr ',' ' ' ) )
 
@@ -83,7 +104,7 @@ set_uefi_boot_order() {
   # if USB is the first boot item, then nothing to do
   if [[ "${_old_parts[0]}" == *USB* ]] ; then
     echo "USB boot is already first. Nothing to do."
-    return $YES
+    return $SUCCESS
   fi
 
   # Find the USB boot entry and make it the first one
@@ -93,32 +114,17 @@ set_uefi_boot_order() {
       set -x
       $RACADM set bios.biosbootsettings.SetBootOrderFqdd1 "$elem"
       set +x
+      REBOOT_REQUIRED=$YES
+      REBOOT_MSG="Set usb as first boot option"
       break
     fi
   done
-  apply_changes
-}
-
-
-set_usb_as_first_boot_option() {
-  local _bootmode=$( get_boot_mode )
-  echo "Bootmode is '$_bootmode'"
-  # TODO - add support to set boot order for BIOS boot mode
-  case "$_bootmode" in
-    uefi)
-      # echo "OLD boot order"
-      # get_uefi_boot_order
-      # echo
-      set_uefi_boot_order
-      ;;
-    *)
-      die "boot mode: '$_bootmode' is not supported."
-      ;;
-  esac
 }
 
 
 apply_changes() {
+  [[ $REBOOT_REQUIRED -eq $NO ]] && return 0
+  $RACADM get bios.biosbootsettings
   cat <<ENDHERE
 Next Steps:
   1. Check bios boot settings ...
@@ -133,12 +139,23 @@ Next Steps:
      racadm jobqueue view
      racadm jobqueue delete --all
 ENDHERE
+
+  echo
+  echo "Rebooting in 10 seconds..."
+  sleep 10
+  echo "... rebooting NOW"
+  $RACADM jobqueue create BIOS.Setup.1-1 -r pwrcycle -s TIME_NOW
 }
 
 
 # DO WORK
 assert_racadm
 
-enable_usb_boot || exit
+set_uefi_boot_mode \
+&& apply_changes
 
-set_usb_as_first_boot_option
+enable_usb_boot \
+&& apply_changes
+
+set_usb_as_first_boot_option \
+&& apply_changes
