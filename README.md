@@ -34,3 +34,6 @@ a server when it is decommissioned.
 * `curl
   "https://raw.githubusercontent.com/ncsa/syswipe/${SYSWIPE_GIT_BRANCH:-main}/scripts/Dell/racadm_set_usb_boot"
   | bash`
+
+# See also
+* https://github.com/andylytical/autonuke
