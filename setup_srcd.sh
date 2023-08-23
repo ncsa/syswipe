@@ -12,10 +12,7 @@ src_fn="config/SRCD/200-custom.yaml"
 tgt_fn="sysrescue.d/200-custom.yaml"
 curl -o "$tgt_fn" "$REPO/$BRANCH/$src_fn"
 
-# Set grub timeout to 1 
-# Set grub default boot menu to 3 (nomodeset)
-#   - apparently can't put nomodeset in the yaml config file
-sed --in-place=orig \
-  -e '/^set timeout=/c set timeout=1' \
-  -e '/^set default=/c set default=3' \
-  boot/grub/grubsrcd.cfg
+# # Install custom boot options
+# src_fn="config/grub/custom.cfg"
+# tgt_fn="boot/grub/custom.cfg"
+# curl -o "$tgt_fn" "$REPO/$BRANCH/$src_fn"

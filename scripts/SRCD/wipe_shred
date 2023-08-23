@@ -6,10 +6,24 @@ LOGFILE=/var/log/wipe_shred.log
 
 
 # FUNCTIONS
-function logr {
+logr() {
   logger -t SRCD -p local4.info "$*"
   echo "$*"
   echo "$*" >> "$LOGFILE"
+}
+
+
+die() {
+  logr "ERROR: $*"
+  exit 1
+}
+
+
+get_valid_devs() {
+  # if TRAN is null, then it's a partition or virtual device
+  # if TRAN is usb, then it's a USB device (dont wipe the boot USB key)
+  lsblk -o kname,tran --paths --json \
+  | jq -r '.blockdevices[] | select(.tran != null and .tran != "usb") | .kname'
 }
 
 
@@ -31,11 +45,23 @@ wipe_device() {
 
 # DO WORK
 
-devices=( $( ls /dev/disk/by-id | grep wwn | grep -v -- '-part' ) )
-for devID in "${devices[@]}"; do
-  wipe_device "/dev/disk/by-id/$devID" || logr "...failed"
+devices=( $(get_valid_devs) )
+if [[ ${#devices[*]} -lt 1 ]] ; then
+  die "No wipeable devices found"
+fi
+
+# Show what drives were found
+logr "Found ${#devices[*]} device(s) ..."
+lsblk --paths -o kname,size "${devices[@]}" | tee -a "$LOGFILE"
+
+# Wipe all the drives
+for dev in "${devices[@]}"; do
+  wipe_device "${dev}" || logr "...failed" &
 done
 
-logr "Devices wiped in ${SECONDS} seconds"
+# wait for all the "shred" procs to finish
+wait
+
+logr "Done. Wiped ${#devices[*]} device(s) in ${SECONDS} seconds"
 
 exit 0
