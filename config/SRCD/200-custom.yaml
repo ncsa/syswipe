@@ -5,4 +5,9 @@ global:
 
 autorun:
   ar_disable: false
-  ar_suffixes: "0,1,2,3,4,5,6,7,8,9,A,B,C,D,E,F"
+  ar_nowait: false
+  ar_nodel: true
+  exec:
+    "900 wipe all drives":
+      path: "/run/archiso/bootmnt/autorun/wipe_all_drives"
+      wait: "always"
