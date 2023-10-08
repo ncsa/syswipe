@@ -1,34 +1,14 @@
 #!/bin/bash
 
+#
 # PREP
-DEBUG=0
+#
+. /root/wipe_lib
 
-LOGFILE=/var/log/"$(basename ${0})".log
 
-
+#
 # FUNCTIONS
-logr() {
-  logger -t SRCD -p local4.info "$*"
-  echo "$*"
-  echo "$*" >> "$LOGFILE"
-}
-
-
-die() {
-  logr "ERROR: $*"
-  exit 1
-}
-
-
-warn() {
-  logr "WARN: $*"
-}
-
-info() {
-  logr "INFO: $*"
-}
-
-
+#
 get_valid_devs() {
   # if TRAN is null, then it's a partition or virtual device
   # if TRAN is usb, then it's a USB device (dont wipe the boot USB key)
@@ -39,23 +19,9 @@ get_valid_devs() {
 }
 
 
-wipe_device() {
-  local _full_path_to_device="$1"
-  local _action=shred
-  local _parms=( "--iterations=1" "--force" "--zero" )
-  [[ $DEBUG -eq 1 ]] && _action='echo'
-  info "$(date) START $_full_path_to_device"
-  info "$_action ${_parms[@]} $_full_path_to_device"
-  set -x
-  $_action "${_parms[@]}" "$_full_path_to_device"
-  local _rc=$?
-  set +x
-  info "$(date) END $_full_path_to_device"
-  return "$_rc"
-}
-
-
+#
 # DO WORK
+#
 
 devices=( $(get_valid_devs) )
 if [[ ${#devices[*]} -lt 1 ]] ; then

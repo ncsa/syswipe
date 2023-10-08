@@ -1,0 +1,14 @@
+---
+global:
+  copytoram: true
+  dostartx: false
+
+autorun:
+  exec:
+    100:
+      path: "/run/archiso/bootmnt/autorun/install_wiping_scripts.sh"
+      wait: "on_error"
+
+autoterminal:
+  tty2: "/root/wipe_all_drives.sh"
+  tty3: "/root/continuous_wipe.sh"

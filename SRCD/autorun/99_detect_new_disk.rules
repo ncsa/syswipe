@@ -1,0 +1,1 @@
+SUBSYSTEM=="block", ACTION=="add", RUN+="/root/add_disk_to_wipe.sh %N"

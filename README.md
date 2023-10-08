@@ -15,20 +15,35 @@ a server when it is decommissioned.
   | bash`
 
 # Auto wipe a server
+### Boot from USB key
 1. Insert USB key
 1. Power on (or reboot)
 1. If boot from USB is not enabled:
    1. During POST, manually select Boot options (usually F11)
    1. Select the USB key as the boot option
 
-# Monitor wipe progress
-1. While auto-wipe is active, the program will wait for all wipes to complete
-   and command prompt will not return till the wipe is complete.
-1. Use an alternate console to monitor progress:
-   1. `Ctl-Alt-F2`
-   1. `watch -n 60 'ps aux | grep shred'`
+### Monitor wipe progress
+Auto-wipe of all local drives is run on terminal 2. Monitor progress by
+switching to terminal 2:
+1. `Ctl-Alt-F2`
 
-# Wipe a Dell System iDRAC - BEFORE doing auto-wipe
+
+# Continuous wipe using an external drive carrier
+Connect a USB drive carrier and insert a hard drive.
+
+The system will detect the new device and wipe it automatically.
+
+When it's complete, swap in a new drive to have it auto-wiped.
+
+Repeat until all drives are wiped.
+### Monitor wipe progress
+Auto-wipe of hot-swap drives is run on terminal 3. Monitor progress by
+switching to terminal 3:
+1. `Ctl-Alt-F3`
+
+
+# Other tools
+## Wipe a Dell System iDRAC - BEFORE doing auto-wipe
 1. ssh to the system
 1. If not already installed, install racadm
    ```
