@@ -50,15 +50,34 @@ release_lock() {
 }
 
 
+get_dev_size() {
+  # INPUT
+  # 1. device name, in /dev/<KNAME> format
+  # OUTPUT
+  #   size in bytes
+  /usr/bin/lsblk -b -o kname,tran,type,size --paths --json "$1" \
+  | /usr/bin/jq -r '.blockdevices[]
+    | select(.type == "disk" and .tran != null and .tran != "usb")
+    | .size'
+}
+
+
 wipe_device() {
   local _full_path_to_device="$1"
   local _action='shred'
   local _parms=( "--iterations=1" "--force" "--zero" )
+  local _start=$SECONDS
+  local _end _elapsed _rc _size _iorate
   [[ $DEBUG -eq 1 ]] && _action='echo'
   info "$(date) START WIPE '$_full_path_to_device'"
   info "$_action ${_parms[@]} $_full_path_to_device"
   $_action "${_parms[@]}" "$_full_path_to_device"
-  local _rc=$?
+  _rc=$?
   info "$(date) END WIPE '$_full_path_to_device'"
+  _end=$SECONDS
+  _elapsed=$( bc <<< "$_end - $_start" )
+  _size=$( get_dev_size $_full_path_to_device )
+  _iorate=$( bc <<< "$_size / $_elapsed" )
+  info "$(date) Wiped '$_size' Bytes in '$_elapsed' seconds @ '$_iorate'B/s"
   return "$_rc"
 }

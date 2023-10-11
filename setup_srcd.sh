@@ -1,9 +1,16 @@
-#SRCD/*; do Configure SRCD for wiping disks
+# Configure SRCD for wiping disks
 REPO="https://raw.githubusercontent.com/ncsa/syswipe"
 BRANCH=${SYSWIPE_GIT_BRANCH:-main}
 
 
+die() {
+  echo "ERROR: $*" 1>&2
+  exit 1
+}
+
+
 install_files() {
+  [[ -d "$DIR" ]] || die "Directory not found '$DIR'"
   pushd "$DIR"
   for fn in "${SOURCES[@]}" ; do
     curl -O "$REPO/$BRANCH/SRCD/$DIR/$fn"
@@ -28,10 +35,26 @@ DIR=autorun
 SOURCES=(
 99_detect_new_disk.rules
 add_disk_to_wipe.sh
+auto_wipe.sh
 continuous_wipe.sh
 install_wiping_scripts.sh
-wipe_all_drives.sh
 wipe_lib
 wipe_next.sh
 )
 install_files
+
+# Add authorized_keys for remote login
+TGT=sysrescue.d/201-authorized_keys.yaml
+if [[ -n $SYSWIPE_AUTHKEYS_GITHUBUSER ]] ; then
+  >"$TGT" cat <<ENDHERE
+---
+sysconfig:
+  authorized_keys:
+ENDHERE
+  URL=https://github.com/${SYSWIPE_AUTHKEYS_GITHUBUSER}.keys
+  curl -s "$URL" \
+  | awk -v "user=$SYSWIPE_AUTHKEYS_GITHUBUSER" -e '
+      {printf("    \"%d-github.com/%s\": \"%s\"\n", NR, user, $0)}
+    ' \
+  >>"$TGT"
+fi

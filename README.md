@@ -8,8 +8,8 @@ a server when it is decommissioned.
 
 ### Configure on Linux (or Bash on Windows)
 * cd to the USB key root
-* (OPTIONAL) Use a branch other than main
-  * `export SYSWIPE_GIT_BRANCH=some_branch_name`
+* (optional, set additional environment variables ... see "Advanced Install"
+  below)
 * `curl
   "https://raw.githubusercontent.com/ncsa/syswipe/${SYSWIPE_GIT_BRANCH:-main}/setup_srcd.sh"
   | bash`
@@ -21,25 +21,36 @@ a server when it is decommissioned.
 1. If boot from USB is not enabled:
    1. During POST, manually select Boot options (usually F11)
    1. Select the USB key as the boot option
-
-### Monitor wipe progress
-Auto-wipe of all local drives is run on terminal 2. Monitor progress by
-switching to terminal 2:
-1. `Ctl-Alt-F2`
+### Monitor progress of auto-wipe local drives
+* Live: `Ctl-Alt-F2`
+* Logs: `/var/log/auto_wipe.log`
+* Live Rate: `iostat -z -m -y -d 1 1`
 
 
 # Continuous wipe using an external drive carrier
 Connect a USB drive carrier and insert a hard drive.
-
 The system will detect the new device and wipe it automatically.
-
 When it's complete, swap in a new drive to have it auto-wiped.
-
 Repeat until all drives are wiped.
-### Monitor wipe progress
-Auto-wipe of hot-swap drives is run on terminal 3. Monitor progress by
-switching to terminal 3:
-1. `Ctl-Alt-F3`
+### Monitor progress of hot-swap drive wipes
+* Live: `Ctl-Alt-F3`
+* Logs: `/var/log/continous_wipe.log`
+* Live Rate: `iostat -p "$(cat /root/disk_wipe_in_progress)" -m -y -d 1 1`
+
+
+# Advanced Install Options - Environment Variables
+Control extra features during "Configure" stage.
+
+Set these before running "curl ... setup_srcd.sh" (above)
+* Use a branch other than main
+  * `export SYSWIPE_GIT_BRANCH=some_branch_name`
+* Install ssh authorized_keys from github.com/user.keys
+  * `export SYSWIPE_AUTHKEYS_GITHUBUSER=githubusername`
+
+### Reset customizations
+1. Insert USB key
+1. cd to the USB key root
+1. `rm -f autorun/* sysrescue.d/2*`
 
 
 # Other tools
