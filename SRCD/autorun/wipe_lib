@@ -55,9 +55,11 @@ get_dev_size() {
   # 1. device name, in /dev/<KNAME> format
   # OUTPUT
   #   size in bytes
-  /usr/bin/lsblk -b -o kname,tran,type,size --paths --json "$1" \
+  [[ $DEBUG -eq 1 ]] && set -x
+  local _devname="$1"
+  /usr/bin/lsblk -b -o kname,tran,type,size --paths --json "$_devname" \
   | /usr/bin/jq -r '.blockdevices[]
-    | select(.type == "disk" and .tran != null and .tran != "usb")
+    | select(.type == "disk" and .tran != null)
     | .size'
 }
 
@@ -67,8 +69,11 @@ wipe_device() {
   local _action='shred'
   local _parms=( "--iterations=1" "--force" "--zero" )
   local _start=$SECONDS
-  local _end _elapsed _rc _size _iorate
-  [[ $DEBUG -eq 1 ]] && _action='echo'
+  local _end _elapsed _rc _size _sizeMB _sizeGB _iorate
+  [[ $DEBUG -eq 1 ]] && {
+    _action='echo'
+    set -x
+  }
   info "$(date) START WIPE '$_full_path_to_device'"
   info "$_action ${_parms[@]} $_full_path_to_device"
   $_action "${_parms[@]}" "$_full_path_to_device"
@@ -76,8 +81,11 @@ wipe_device() {
   info "$(date) END WIPE '$_full_path_to_device'"
   _end=$SECONDS
   _elapsed=$( bc <<< "$_end - $_start" )
+  [[ $DEBUG -eq 1 ]] && _elapsed=3600
   _size=$( get_dev_size $_full_path_to_device )
-  _iorate=$( bc <<< "$_size / $_elapsed" )
-  info "$(date) Wiped '$_size' Bytes in '$_elapsed' seconds @ '$_iorate'B/s"
+  _sizeMB=$( bc <<< "$_size / 1000 / 1000")
+  _sizeGB=$( bc <<< "$_size / 1000 / 1000 / 1000")
+  _iorate=$( bc <<< "$_sizeMB / $_elapsed" )
+  info "$(date) Wiped $_sizeGB GB in $_elapsed seconds @ $_iorate MB/s"
   return "$_rc"
 }

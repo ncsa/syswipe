@@ -48,6 +48,8 @@ TGT=sysrescue.d/201-authorized_keys.yaml
 if [[ -n $SYSWIPE_AUTHKEYS_GITHUBUSER ]] ; then
   >"$TGT" cat <<ENDHERE
 ---
+global:
+  nofirewall: true
 sysconfig:
   authorized_keys:
 ENDHERE

@@ -2,7 +2,6 @@
 global:
   copytoram: true
   dostartx: false
-  nofirewall: true
 
 autorun:
   exec:
