@@ -34,6 +34,7 @@ When it's complete, swap in a new drive to have it auto-wiped.
 Repeat until all drives are wiped.
 ### Monitor progress of hot-swap drive wipes
 * Live: `Ctl-Alt-F3`
+* Monitor: `watch -n 30 /root/status.sh`
 * Logs: `/var/log/continous_wipe.log`
 * Live Rate: `iostat -p "$(cat /root/disk_wipe_in_progress)" -m -y -d 1 1`
 
