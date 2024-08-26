@@ -57,10 +57,35 @@ get_dev_size() {
   #   size in bytes
   [[ $DEBUG -eq 1 ]] && set -x
   local _devname="$1"
-  /usr/bin/lsblk -b -o kname,tran,type,size --paths --json "$_devname" \
-  | /usr/bin/jq -r '.blockdevices[]
-    | select(.type == "disk" and .tran != null)
-    | .size'
+  lsblk -b -o size "$_devname" \
+  | tail -1
+}
+
+
+get_write_rate() {
+  # INPUT
+  # 1. device name, in /dev/<KNAME> format
+  # OUTPUT
+  #   rate in bytes / second
+  local _dev=$( basename "${1}" )
+  rate_kb=$( iostat -d -k --dec=0 "$_dev" \
+  | grep "^$_dev" \
+  | awk '{print $4}' )
+  bc <<< "$rate_kb * 1024"
+}
+
+
+get_written_sofar() {
+  # INPUT
+  # 1. device name, in /dev/<KNAME> format
+  # OUTPUT
+  #   total bytes written to device since system start
+  local _dev=$( basename "${1}" )
+  sofar_kb=$( iostat -d -k --dec=0 "$_dev" \
+  | grep "^$_dev" \
+  | awk '{print $7}' )
+  bc <<< "$sofar_kb * 1024"
+
 }
 
 

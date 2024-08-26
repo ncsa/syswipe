@@ -38,6 +38,7 @@ add_disk_to_wipe.sh
 auto_wipe.sh
 continuous_wipe.sh
 install_wiping_scripts.sh
+status.sh
 wipe_lib
 wipe_next.sh
 )
