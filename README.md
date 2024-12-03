@@ -6,7 +6,7 @@ a server when it is decommissioned.
 ### Get System Rescue CD image
 * [Burn a USB key](https://www.system-rescue.org/Installing-SystemRescue-on-a-USB-memory-stick/)
 
-### Configure on Linux (or Bash on Windows)
+### Configure on Linux (or [Bash on Windows](https://gitforwindows.org/))
 * cd to the USB key root
 * (optional, set additional environment variables ... see "Advanced Install"
   below)
